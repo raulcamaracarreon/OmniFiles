@@ -43,3 +43,17 @@ No probar sobre archivos importantes. Si se necesitan casos de prueba, crear una
 Registrar en GitHub Issues con versión, pasos para reproducir, resultado esperado/observado, traceback y captura si existe.
 
 **Regla:** una prueba unitaria satisfactoria no equivale a una prueba de interfaz o integración. No crear instalador estable antes de validar navegación y Everything en Windows.
+
+
+## 0.2 — índice independiente (rama feature/indexador-sqlite)
+
+- [ ] Ejecutar 16 pruebas locales satisfactorias en Windows.
+- [ ] Abrir la versión 0.2 sin Everything ni es.exe.
+- [ ] Crear dos carpetas ficticias e indexarlas con el botón Indexar carpeta.
+- [ ] Buscar un término compartido por ambas carpetas.
+- [ ] Reiniciar OmniFiles: resultados persisten en SQLite.
+- [ ] Agregar archivo nuevo: no aparece hasta reindexar la carpeta (comportamiento documentado).
+- [ ] Cancelar una reindexación larga y comprobar que el índice anterior se mantiene.
+- [ ] Confirmar que no se modificaron los archivos originales.
+- [ ] Anotar tiempo inicial y tiempo de búsqueda en un conjunto mayor de carpetas.
+- [ ] Si no hay índice, confirmar que OmniFiles muestra una indicación clara en vez de una advertencia sobre ES.
