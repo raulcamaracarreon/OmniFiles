@@ -303,7 +303,7 @@ class MainWindow(QMainWindow):
             )
 
     def start_indexing(self) -> None:
-        if self.active_index:
+        if self.active_index or self.active_search:
             return
         current = self.path_edit.text()
         start_folder = current if Path(current).is_dir() else str(Path.home())
@@ -321,6 +321,7 @@ class MainWindow(QMainWindow):
         if answer != QMessageBox.StandardButton.Yes:
             return
         self.active_index = True
+        self.btn_search.setEnabled(False)
         self.btn_index.setEnabled(False)
         self.btn_index_cancel.setEnabled(True)
         self.index_thread = QThread(self)
@@ -356,6 +357,7 @@ class MainWindow(QMainWindow):
         self.active_index = False
         self.index_thread = None
         self.index_worker = None
+        self.btn_search.setEnabled(True)
         self.btn_index.setEnabled(True)
         self.btn_index_cancel.setEnabled(False)
         self._refresh_search_status()
@@ -465,7 +467,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Ruta copiada.", 3000)
 
     def start_search(self) -> None:
-        if self.active_search:
+        if self.active_search or self.active_index:
             return
         query = self.search_edit.text().strip()
         if not query:
@@ -483,6 +485,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Índice no disponible", str(ex))
             return
         self.active_search = True
+        self.btn_index.setEnabled(False)
         self.btn_search.setEnabled(False)
         self.search_thread = QThread(self)
         self.search_worker = SearchWorker(query, self.db_path)
@@ -512,6 +515,7 @@ class MainWindow(QMainWindow):
         self.active_search = False
         self.search_thread = None
         self.search_worker = None
+        self.btn_index.setEnabled(True)
         self.btn_search.setEnabled(True)
 
     def open_result(self, row: int, _column: int) -> None:
