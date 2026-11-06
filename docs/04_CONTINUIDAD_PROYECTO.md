@@ -169,3 +169,18 @@ Explorador_Sintesis_v0.1/
 **Trabajo GitHub:** Issue #2: https://github.com/raulcamaracarreon/OmniFiles/issues/2. Implementación en rama `feature/indexador-sqlite` basada en `develop`, con pull request para revisión. Solo promover a `main` tras validación de uso.
 
 La indicación de la sección 10 acerca de priorizar la prueba con Everything queda **superada por esta decisión**. La investigación previa sigue documentada como referencia histórica.
+
+
+## 12. Hito de implementación: índice SQLite independiente (rama feature, 2026-11-05)
+
+- Decisión vigente: OmniFiles 0.2 no requiere el ejecutable externo Everything ni es.exe para la búsqueda.
+- Rama: feature/indexador-sqlite, basada en develop; main mantiene la versión 0.1.
+- Nuevo módulo omnifiles/indexer.py: indexación de carpetas seleccionadas con SQLite local, nombres/Unicode, rutas y metadatos; reindexación transaccional y recuperación tras cancelación.
+- app.py conserva el explorador y favoritos, sustituye la búsqueda por consultas SQLite, agrega Indexar carpeta y Cancelar índice con QThread y estado en interfaz.
+- No se indexa ninguna unidad automáticamente. Los usuarios pueden seleccionar varias carpetas sucesivas; para indexar un volumen completo, elegir la raíz explícitamente.
+- Datos internos: %LOCALAPPDATA%/OmniFiles/index.sqlite3, fuera de Git.
+- Esta versión no actualiza el índice en tiempo real ni borra índices de raíces desde la interfaz; buscar archivos obsoletos puede devolver rutas que ya no existen hasta reindexar.
+- Seguridad: archivos originales de solo lectura, sin operaciones de copia/borrado/movimiento; evita symlinks y junctions; guarda el índice anterior si se cancela un escaneo o se excede límite.
+- Pruebas: 16/16 unitarias completadas en Linux (8 heredadas y 8 nuevas); compilación sintáctica Python comprobada. Falta validar interfaz PySide6 en Windows, integración real de dos carpetas y rendimiento con un volumen grande.
+- No se ha ejecutado REA sobre binarios porque la implementación elegida es independiente.
+- GitHub Issue #2: https://github.com/raulcamaracarreon/OmniFiles/issues/2. No fusionar en develop/main antes de validación del usuario.
