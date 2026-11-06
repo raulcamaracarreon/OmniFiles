@@ -153,3 +153,19 @@ Explorador_Sintesis_v0.1/
 - Prioridad siguiente: comprobar búsqueda real con Everything estándar + ES; después diseñar acciones seguras de gestión de archivos.
 - Evitar modificaciones destructivas, automatismos de movimiento y alteraciones de particiones sin plan de pruebas y confirmación.
 - Al reanudar, revisar `docs/06_FLUJO_GITHUB.md` y Issues/PR activos antes de modificar código.
+
+## 11. Decisión de producto: buscador autónomo (OmniFiles 0.2)
+
+**Decisión confirmada:** se opta por desarrollar un motor de búsqueda propio, **sin dependencia de Everything ni `es.exe`**. REA y el SDK de Everything fueron alternativas consideradas, pero no constituyen la arquitectura escogida para la búsqueda global.
+
+**Estado heredado:** OmniFiles 0.1 conserva la consulta a Everything como característica experimental y un escaneo local limitado cuando no encuentra `es.exe`. No retirar ni modificar ese comportamiento en `main` hasta tener sustituto probado.
+
+**Diseño propuesto:** indexación de volúmenes seleccionados por el usuario; proceso no bloqueante en Python; índice SQLite persistente con nombre, ruta, volumen, extensión, tamaño y fecha; búsqueda global y filtros; actualización incremental y control de índice obsoleto cuando se desconecten volúmenes. La búsqueda debe funcionar sin Everything.
+
+**Seguridad:** acceso de lectura a archivos originales; operación cancelable; exclusiones configurables; no seguir enlaces simbólicos o puntos de montaje que provoquen ciclos; no sobrescribir ni borrar datos.
+
+**Próximo hito verificable:** con Everything detenido y sin `es.exe`, indexar dos carpetas temporales de prueba, consultar resultados de ambas y volver a obtenerlos después de reiniciar OmniFiles.
+
+**Trabajo GitHub:** Issue #2: https://github.com/raulcamaracarreon/OmniFiles/issues/2. Implementación en rama `feature/indexador-sqlite` basada en `develop`, con pull request para revisión. Solo promover a `main` tras validación de uso.
+
+La indicación de la sección 10 acerca de priorizar la prueba con Everything queda **superada por esta decisión**. La investigación previa sigue documentada como referencia histórica.
