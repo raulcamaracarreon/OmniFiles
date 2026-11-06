@@ -146,10 +146,10 @@ Explorador_Sintesis_v0.1/
 
 - Repositorio GitHub confirmado: https://github.com/raulcamaracarreon/OmniFiles
 - Se decidió usar GitHub como fuente de verdad para permitir desarrollo y pruebas de uso en paralelo.
-- Rama \`main\`: base de trabajo 0.1 con navegación validada visualmente por el usuario en Windows. Rama \`develop\`: cambios posteriores en integración. Ramas \`feature/*\` para funcionalidades aisladas, PR para revisión.
-- Primera prueba de usuario: la aplicación abre, muestra C:, D:, E:, F: y G: y permite navegación. En una búsqueda sin \`es.exe\`, muestra correctamente advertencia de búsqueda local limitada. Esta observación **no equivale a haber validado** Everything/ES.
+- Rama `main`: base de trabajo 0.1 con navegación validada visualmente por el usuario en Windows. Rama `develop`: cambios posteriores en integración. Ramas `feature/*` para funcionalidades aisladas, PR para revisión.
+- Primera prueba de usuario: la aplicación abre, muestra C:, D:, E:, F: y G: y permite navegación. En una búsqueda sin `es.exe`, muestra correctamente advertencia de búsqueda local limitada. Esta observación **no equivale a haber validado** Everything/ES.
 - Las 8 pruebas unitarias locales de Python siguen pasando en el entorno de preparación.
 - No usar GitHub Actions por el momento. Las pruebas automáticas se ejecutan localmente y las pruebas de uso en Windows las realiza el usuario, registrando resultados.
 - Prioridad siguiente: comprobar búsqueda real con Everything estándar + ES; después diseñar acciones seguras de gestión de archivos.
 - Evitar modificaciones destructivas, automatismos de movimiento y alteraciones de particiones sin plan de pruebas y confirmación.
-- Al reanudar, revisar \`docs/06_FLUJO_GITHUB.md\` y Issues/PR activos antes de modificar código.
+- Al reanudar, revisar `docs/06_FLUJO_GITHUB.md` y Issues/PR activos antes de modificar código.

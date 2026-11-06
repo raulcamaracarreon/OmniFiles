@@ -5,10 +5,10 @@ No probar sobre archivos importantes. Si se necesitan casos de prueba, crear una
 ## Instalación y arranque
 
 - [ ] Abrir PowerShell en la carpeta descomprimida.
-- [ ] Confirmar \`python --version\` y crear \`.venv\` con \`python -m venv .venv\`.
-- [ ] Instalar \`requirements.txt\`.
-- [ ] Ejecutar \`python -m unittest discover -s tests -v\`.
-- [ ] Ejecutar \`.\.venv\Scripts\python.exe -m omnifiles\`.
+- [ ] Confirmar `python --version` y crear `.venv` con `python -m venv .venv`.
+- [ ] Instalar `requirements.txt`.
+- [ ] Ejecutar `python -m unittest discover -s tests -v`.
+- [ ] Ejecutar `.\.venv\Scripts\python.exe -m omnifiles`.
 - [x] Verificado por el usuario: OmniFiles abre y muestra unidades C:, D:, E:, F: y G: en Windows.
 
 ## Navegación
@@ -34,7 +34,7 @@ No probar sobre archivos importantes. Si se necesitan casos de prueba, crear una
 - [ ] Instalar/elegir Everything estándar (no Lite).
 - [ ] Ejecutar Everything e indexar las unidades requeridas.
 - [ ] Configurar es.exe desde OmniFiles.
-- [ ] Buscar términos sencillos, rutas, \`*.pdf\` y nombres con acentos.
+- [ ] Buscar términos sencillos, rutas, `*.pdf` y nombres con acentos.
 - [ ] Detener Everything y comprobar aviso adecuado.
 - [ ] Probar un volumen alto de resultados (límite 400).
 
