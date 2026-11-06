@@ -18,7 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from .core import human_size, validate_navigation
-from .search import find_es, search_everything, search_local
+from .search import SearchOutput
+from .indexer import database_path, indexed_roots, index_folder, search_index, IndexCancelled
 
 
 def config_path() -> Path:
@@ -31,22 +32,41 @@ class SearchWorker(QObject):
     error = Signal(str)
     finished = Signal()
 
-    def __init__(self, query: str, folder: str, es_path: str | None):
+    def __init__(self, query: str, db_path: Path):
         super().__init__()
         self.query = query
+        self.db_path = db_path
+
+    def run(self) -> None:
+        try:
+            paths = search_index(self.db_path, self.query)
+            self.done.emit(SearchOutput(paths, "SQLite", f"{len(paths)} resultados del índice local; máximo 400. Los cambios posteriores a la indexación pueden no aparecer."))
+        except Exception as ex:
+            self.error.emit(str(ex))
+        finally:
+            self.finished.emit()
+
+
+class IndexWorker(QObject):
+    done = Signal(object)
+    progress = Signal(int)
+    error = Signal(str)
+    finished = Signal()
+
+    def __init__(self, folder: str, db_path: Path):
+        super().__init__()
         self.folder = folder
-        self.es_path = es_path
+        self.db_path = db_path
         self.cancel = threading.Event()
 
     def run(self) -> None:
         try:
-            if self.es_path:
-                output = search_everything(self.es_path, self.query)
-            else:
-                output = search_local(self.folder, self.query, cancel=self.cancel)
-            self.done.emit(output)
-        except Exception as ex:
+            summary = index_folder(self.db_path, self.folder, cancel=self.cancel, progress=self.progress.emit)
+            self.done.emit(summary)
+        except IndexCancelled as ex:
             self.error.emit(str(ex))
+        except Exception as ex:
+            self.error.emit(f"Error de indexación: {ex}")
         finally:
             self.finished.emit()
 
@@ -54,7 +74,7 @@ class SearchWorker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("OmniFiles — explorador de archivos (prototipo 0.1)")
+        self.setWindowTitle("OmniFiles — explorador de archivos (prototipo 0.2)")
         self.resize(1180, 720)
         self.setMinimumSize(850, 480)
         self.history: list[str] = []
@@ -62,10 +82,13 @@ class MainWindow(QMainWindow):
         self.active_search = False
         self.search_thread: QThread | None = None
         self.search_worker: SearchWorker | None = None
+        self.active_index = False
+        self.index_thread: QThread | None = None
+        self.index_worker: IndexWorker | None = None
+        self.db_path = database_path()
 
         self.settings = self._load_settings()
         self.bookmarks: list[str] = [p for p in self.settings.get("favorites", []) if isinstance(p, str)]
-        self.es_path = str(self.settings.get("es_path", ""))
 
         main = QWidget(self)
         self.setCentralWidget(main)
@@ -99,14 +122,14 @@ class MainWindow(QMainWindow):
 
         search_bar = QHBoxLayout()
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Buscar archivos y carpetas en todas las unidades con Everything...")
+        self.search_edit.setPlaceholderText("Buscar por nombre en todas las carpetas indexadas (SQLite)...")
         self.btn_search = QPushButton("Buscar")
-        self.btn_cancel = QPushButton("Cancelar")
-        self.btn_cancel.setEnabled(False)
         self.btn_explorer = QPushButton("Ver carpeta")
-        self.btn_es = QPushButton("Configurar ES")
+        self.btn_index = QPushButton("Indexar carpeta")
+        self.btn_index_cancel = QPushButton("Cancelar índice")
+        self.btn_index_cancel.setEnabled(False)
         search_bar.addWidget(self.search_edit, stretch=1)
-        for btn in (self.btn_search, self.btn_cancel, self.btn_explorer, self.btn_es):
+        for btn in (self.btn_search, self.btn_explorer, self.btn_index, self.btn_index_cancel):
             search_bar.addWidget(btn)
         vbox.addLayout(search_bar)
 
@@ -156,7 +179,7 @@ class MainWindow(QMainWindow):
 
         self.engine_label = QLabel()
         vbox.addWidget(self.engine_label)
-        self.statusBar().showMessage("Listo. La versión 0.1 no modifica archivos.")
+        self.statusBar().showMessage("Listo. OmniFiles 0.2 no modifica los archivos originales.")
 
         self.btn_back.clicked.connect(self.go_back)
         self.btn_next.clicked.connect(self.go_next)
@@ -166,9 +189,9 @@ class MainWindow(QMainWindow):
         self.btn_fav.clicked.connect(self.toggle_favorite)
         self.path_edit.returnPressed.connect(self.navigate_address)
         self.btn_search.clicked.connect(self.start_search)
-        self.btn_cancel.clicked.connect(self.cancel_search)
         self.btn_explorer.clicked.connect(lambda: self.pages.setCurrentIndex(0))
-        self.btn_es.clicked.connect(self.configure_es)
+        self.btn_index.clicked.connect(self.start_indexing)
+        self.btn_index_cancel.clicked.connect(self.cancel_indexing)
         self.search_edit.returnPressed.connect(self.start_search)
         self.drives_list.itemActivated.connect(lambda item: self.navigate(item.data(Qt.ItemDataRole.UserRole)))
         self.drives_list.itemClicked.connect(lambda item: self.navigate(item.data(Qt.ItemDataRole.UserRole)))
@@ -203,7 +226,7 @@ class MainWindow(QMainWindow):
             dest = config_path()
             dest.parent.mkdir(parents=True, exist_ok=True)
             tmp = dest.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"favorites": self.bookmarks, "es_path": self.es_path}, indent=2, ensure_ascii=False), encoding="utf-8")
+            tmp.write_text(json.dumps({"favorites": self.bookmarks, "es_path": self.settings.get("es_path", "")}, indent=2, ensure_ascii=False), encoding="utf-8")
             tmp.replace(dest)
         except OSError as ex:
             self.statusBar().showMessage(f"No se pudo guardar configuración: {ex}", 7000)
@@ -259,18 +282,91 @@ class MainWindow(QMainWindow):
             self.favs_list.addItem(item)
 
     def _refresh_search_status(self) -> None:
-        candidate = find_es(self.es_path)
-        if candidate:
-            self.engine_label.setText("Motor disponible: Everything ES (se necesita Everything estándar ejecutándose).")
+        try:
+            roots = indexed_roots(self.db_path)
+        except Exception as ex:
+            self.engine_label.setText(f"No se puede leer el índice SQLite: {ex}")
+            return
+        total = sum(item["count"] for item in roots)
+        if roots:
+            locations = ", ".join(item["path"] for item in roots[:3])
+            if len(roots) > 3:
+                locations += f" ... (+{len(roots) - 3})"
+            self.engine_label.setText(
+                f"Motor propio SQLite · {len(roots)} carpetas · {total:,} elementos · {locations}. "
+                "Los cambios posteriores a la indexación requieren reindexar."
+            )
         else:
-            self.engine_label.setText("Motor: búsqueda local acotada a la carpeta actual. Configura es.exe para búsqueda global.")
+            self.engine_label.setText(
+                "Motor propio SQLite: aún no hay carpetas indexadas. "
+                "Pulsa «Indexar carpeta»; no necesitas Everything."
+            )
 
-    def configure_es(self) -> None:
-        chosen, _ = QFileDialog.getOpenFileName(self, "Seleccionar es.exe", str(Path.home()), "Ejecutable ES (es.exe);;Todos (*.*)")
-        if chosen:
-            self.es_path = chosen
-            self._save_settings()
-            self._refresh_search_status()
+    def start_indexing(self) -> None:
+        if self.active_index or self.active_search:
+            return
+        current = self.path_edit.text()
+        start_folder = current if Path(current).is_dir() else str(Path.home())
+        folder = QFileDialog.getExistingDirectory(self, "Elegir una carpeta para indexar", start_folder)
+        if not folder:
+            return
+        answer = QMessageBox.question(
+            self, "Confirmar indexación",
+            f"¿Indexar nombres y metadatos dentro de esta carpeta y sus subcarpetas?\n\n{folder}\n\n"
+            "Solo lectura. El primer recorrido puede tardar; puedes cancelarlo. "
+            "Una nueva indexación de esta misma carpeta actualizará los resultados.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.active_index = True
+        self.btn_search.setEnabled(False)
+        self.btn_index.setEnabled(False)
+        self.btn_index_cancel.setEnabled(True)
+        self.index_thread = QThread(self)
+        self.index_worker = IndexWorker(folder, self.db_path)
+        self.index_worker.moveToThread(self.index_thread)
+        self.index_thread.started.connect(self.index_worker.run)
+        self.index_worker.progress.connect(self.index_progress)
+        self.index_worker.done.connect(self.index_done)
+        self.index_worker.error.connect(self.index_error)
+        self.index_worker.finished.connect(self.index_thread.quit)
+        self.index_worker.finished.connect(self.index_worker.deleteLater)
+        self.index_thread.finished.connect(self.index_thread.deleteLater)
+        self.index_thread.finished.connect(self.index_cleanup)
+        self.index_thread.start()
+        self.statusBar().showMessage(f"Indexando en segundo plano: {folder}")
+
+    def index_progress(self, count: int) -> None:
+        self.statusBar().showMessage(f"Indexando en segundo plano: {count:,} elementos examinados...")
+
+    def index_done(self, summary) -> None:
+        self.statusBar().showMessage(
+            f"Índice actualizado: {summary.count:,} elementos; {summary.skipped} omitidos. "
+            "Los archivos originales no se modificaron."
+        )
+        self._refresh_search_status()
+
+    def index_error(self, detail: str) -> None:
+        self.statusBar().showMessage(detail, 12000)
+        if not detail.startswith("Indexación cancelada"):
+            QMessageBox.warning(self, "Indexación", detail)
+
+    def index_cleanup(self) -> None:
+        self.active_index = False
+        self.index_thread = None
+        self.index_worker = None
+        self.btn_search.setEnabled(True)
+        self.btn_index.setEnabled(True)
+        self.btn_index_cancel.setEnabled(False)
+        self._refresh_search_status()
+
+    def cancel_indexing(self) -> None:
+        if self.index_worker:
+            self.index_worker.cancel.set()
+            self.btn_index_cancel.setEnabled(False)
+            self.statusBar().showMessage("Cancelando indexación. Se conserva el índice anterior...")
 
     def navigate(self, path: str, record: bool = True) -> None:
         try:
@@ -371,46 +467,37 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Ruta copiada.", 3000)
 
     def start_search(self) -> None:
-        if self.active_search:
+        if self.active_search or self.active_index:
             return
         query = self.search_edit.text().strip()
         if not query:
             self.search_edit.setFocus()
             return
-        es = find_es(self.es_path)
-        if not es:
-            answer = QMessageBox.question(
-                self, "Búsqueda local limitada",
-                "No encontramos es.exe. ¿Buscar solo por nombre dentro de la carpeta actual?\n"
-                "La búsqueda tendrá límites de tiempo, resultados y directorios.\n"
-                "Los filtros de Everything no se interpretarán en este modo.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
+        try:
+            if not indexed_roots(self.db_path):
+                QMessageBox.information(
+                    self, "Sin índice",
+                    "No hay carpetas indexadas. Pulsa «Indexar carpeta», elige una carpeta "
+                    "y vuelve a realizar la búsqueda. No necesitas Everything.",
+                )
                 return
-        folder = self.path_edit.text()
+        except Exception as ex:
+            QMessageBox.warning(self, "Índice no disponible", str(ex))
+            return
         self.active_search = True
+        self.btn_index.setEnabled(False)
         self.btn_search.setEnabled(False)
-        self.btn_cancel.setEnabled(True)
         self.search_thread = QThread(self)
-        self.search_worker = SearchWorker(query, folder, es)
+        self.search_worker = SearchWorker(query, self.db_path)
         self.search_worker.moveToThread(self.search_thread)
         self.search_thread.started.connect(self.search_worker.run)
         self.search_worker.done.connect(self.search_done)
         self.search_worker.error.connect(self.search_error)
         self.search_worker.finished.connect(self.search_thread.quit)
         self.search_worker.finished.connect(self.search_worker.deleteLater)
-        self.search_thread.finished.connect(self.search_thread.deleteLater)
         self.search_thread.finished.connect(self.search_cleanup)
         self.search_thread.start()
-        self.statusBar().showMessage("Buscando...")
-
-    def cancel_search(self) -> None:
-        if self.search_worker:
-            self.search_worker.cancel.set()
-            self.btn_cancel.setEnabled(False)
-            self.statusBar().showMessage("Cancelación solicitada; finalizando operación...")
+        self.statusBar().showMessage("Buscando en el índice SQLite...")
 
     def search_done(self, output) -> None:
         self.results.setRowCount(len(output.paths))
@@ -428,8 +515,8 @@ class MainWindow(QMainWindow):
         self.active_search = False
         self.search_thread = None
         self.search_worker = None
+        self.btn_index.setEnabled(True)
         self.btn_search.setEnabled(True)
-        self.btn_cancel.setEnabled(False)
 
     def open_result(self, row: int, _column: int) -> None:
         item = self.results.item(row, 1)
@@ -437,9 +524,14 @@ class MainWindow(QMainWindow):
             self.open_path(item.text())
 
     def closeEvent(self, event) -> None:
-        if self.active_search:
-            self.cancel_search()
-            QMessageBox.information(self, "Búsqueda en curso", "Se solicitó cancelar la búsqueda. Cierra la ventana cuando termine.")
+        if self.active_index:
+            self.cancel_indexing()
+        if self.active_search or self.active_index:
+            QMessageBox.information(
+                self, "Trabajo en curso",
+                "Se solicitó cancelar la indexación, si estaba activa. "
+                "Cierra la ventana cuando terminen las tareas de fondo.",
+            )
             event.ignore()
         else:
             event.accept()

@@ -1,48 +1,42 @@
-# OmniFiles — explorador de archivos (prototipo 0.1)
+# OmniFiles 0.2 (desarrollo) — buscador autónomo para Windows
 
-Aplicación de escritorio para Windows escrita en Python y PySide6. Incorpora navegación por unidades y carpetas, favoritos, búsqueda local limitada y búsqueda global opcional mediante **Everything + ES**.
+Proyecto Python + PySide6; interfaz de exploración y volúmenes heredada de la versión 0.1, con **indexación y búsqueda SQLite propias**. No requiere Everything ni es.exe.
 
-## Estado
+> Esta versión está en la rama de desarrollo feature/indexador-sqlite; **main conserva la 0.1** hasta que el usuario valide el cambio en Windows. No se modifican archivos originales; la aplicación crea una base de datos en %LOCALAPPDATA%\OmniFiles\index.sqlite3.
 
-**0.1: validación de uso inicial en Windows.** Se han superado 8 pruebas unitarias de lógica, pero la integración real con Everything todavía debe validarse.
+## Ejecutar y probar en Windows
 
-- Navegar por carpetas y unidades C:, D:, E:, F: (y otras montadas)
-- Consultar el espacio libre y ocupado de cada unidad lógica
-- Abrir archivos y carpetas, copiar rutas, guardar favoritos
-- Buscar con Everything estándar + `es.exe`, o usar búsqueda local acotada sin Everything
-
-**No implementa:** copiar, mover, borrar ni renombrar archivos; no modifica particiones.
-
-## Instalación
-
-Desde PowerShell, en la raíz del repositorio:
+En PowerShell, tras clonar, cambiar a la rama de prueba:
 
 ```powershell
+git fetch origin
+git switch feature/indexador-sqlite
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m omnifiles
 ```
 
-Para las pruebas:
+Si ya existe .venv, reutilizarlo sin recrearlo. No modificar ni eliminar otros archivos locales con git reset --hard.
 
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
+## Prueba de uso segura (primera validación)
 
-## Everything
+1. Crear dos carpetas de prueba en una ubicación conocida y agregar archivos ficticios con nombres como informe_UNRC.txt y vacaciones.jpg (no necesitan datos reales).
+2. Abrir OmniFiles, pulsar **Indexar carpeta**, elegir la primera y aceptar. Repetir para la segunda.
+3. Escribir informe y pulsar **Buscar**: aparecen resultados procedentes de todas las carpetas indexadas.
+4. Cerrar OmniFiles y abrirlo nuevamente: la búsqueda debe seguir funcionando sin reindexar.
+5. Crear un nuevo archivo en una carpeta indexada. Comprobar que **no** aparece hasta volver a indexar esa carpeta (limitación documentada).
+6. Probar **Cancelar índice** sobre una carpeta con varios cientos de elementos: si ya existía un índice anterior, debe conservarse.
 
-Instalar [Everything estándar](https://www.voidtools.com/downloads/) y [ES](https://github.com/voidtools/ES/releases), mantener Everything abierto y seleccionar el ejecutable `es.exe` desde el botón **Configurar ES**.
+**Importante:** la versión 0.2 inicial no actualiza el índice en tiempo real ni indexa automáticamente unidades completas; cada carpeta se selecciona explícitamente. No muestra resultados de archivos nuevos ni eliminados hasta reindexar. El escaneo de una unidad grande puede tardar y consumir E/S. Se omiten enlaces/junctions y algunos elementos no accesibles por permisos.
 
-La búsqueda local sin ES se limita a la carpeta actual y subcarpetas; no es una búsqueda global indexada.
+## Desarrollo
 
-## Desarrollo colaborativo
+- main: 0.1 sin cambios.
+- develop: integración de funciones probadas.
+- feature/indexador-sqlite: implementación aislada de la búsqueda independiente.
+- Pruebas locales, sin GitHub Actions.
+- Seguimiento: [Issue #2](https://github.com/raulcamaracarreon/OmniFiles/issues/2).
+- Documentación: docs/ (continuidad en docs/04_CONTINUIDAD_PROYECTO.md).
 
-- `main`: versión estable confirmada mediante pruebas de uso.
-- `develop`: integración y versiones en evaluación.
-- `feature/*`: características independientes.
-- No ejecutar GitHub Actions por ahora; las pruebas se realizan localmente.
-- Registrar problemas y hallazgos en Issues, y las propuestas de cambios en Pull Requests.
-
-Documentación: `docs/`. La aplicación no redistribuye binarios externos; la licencia del código propio está pendiente de selección.
-
-> Prototipo experimental. Antes de publicar una versión estable es necesario verificar la integración en Windows, derechos de distribución y dependencias.
+Licencia del código propio pendiente de selección. No se redistribuyen dependencias externas.
